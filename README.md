@@ -1,5 +1,7 @@
 # Shared Vehicle Access
 
+<img src="media/icon.png" alt="Shared Vehicle Access icon" width="128" height="128">
+
 Alt+F borrows an aimed unoccupied vehicle through native holder handover.
 
 ## Install
