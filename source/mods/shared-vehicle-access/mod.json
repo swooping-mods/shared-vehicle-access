@@ -1,0 +1,12 @@
+{
+  "id": "shared-vehicle-access",
+  "kind": "native",
+  "version": "0.1.0",
+  "display_name": "Shared Vehicle Access",
+  "gameplay": true,
+  "feature_dependencies": [],
+  "play_help": [
+    "Alt+F borrows an aimed unoccupied vehicle through native holder handover.",
+    "Implementation build only; testing deferred."
+  ]
+}
