@@ -1,21 +1,23 @@
 /* Borrowing uses the existing handover transaction and never changes the buyer. */
 #include "base.h"
 #include "../../runtime/native/input.h"
+#include "../../runtime/native/local_actor.h"
 #include "../vehicle-framework/sdk/fleet_adapter.h"
 static PTR handover_class;
 static PTR aim_f,crew_aim_f,equipment_owner_f,index_m,give_m,take_m,enter_m,driven_m,ask_m;
-static int before(int id,Context *c){(void)id;if(!on_thread())return 0;int edge=moon_input_action("shared-vehicle-access.borrow","Alt+F",1).pressed,ok=1;PTR walker=(PTR)c->rcx,world=0,mounted=0;field_value(walker,world_f,&world);field_value(walker,mounted_f,&mounted);DWORD pid=0;window_pid(foreground(),&pid);
- if(!edge||!alive(world)||alive(mounted)||pid!=GetCurrentProcessId()||!boolean(focus_m,0,&ok)||boolean(typing_m,0,&ok)||boolean(blocked_m,walker,&ok)||boolean(menu_m,walker,&ok)||boolean(restoring_m,world,&ok)||!ok)return 0;
+#include "borrow.h"
+#include "frame_admission.h"
+static int before(int id,Context *c){(void)id;if(!on_thread())return 0;int ok=1;PTR walker=(PTR)c->rcx,world=0;
+ if(!borrow_frame_admit(walker,&world))return 0;
  PTR equipment=component(walker,"MoonPrototypeEquipment",&ok),v=0,remote=0;if(!equipment||!ok)return 0;field_value(equipment,aim_f,&v);field_value(equipment,crew_aim_f,&remote);
  if(alive(remote)){void *a[]={remote};call(ask_m,equipment,a,&ok);event(ok?"borrow-request-sent":"borrow-request-failed");return 0;}
- if(!alive(v)||boolean(driven_m,v,&ok)||!ok)return 0;PTR donor=0;field_value(v,equipment_owner_f,&donor);if(!donor)return 0;
- if(donor==equipment){boolean(enter_m,v,&ok);return 0;}int index=integer(index_m,v,&ok);PTR storage=mf_vehicle_storage(v,&ok),player=call(mf.local,0,0,&ok),message=0;if(!ok||!storage||!player)return 0;DRoot handover=dhold(da.new_object(handover_class));if(!handover)return 0;
- /* GiveVehicle preserves the MoonOwnedVehicle.owner purchase record and moves
-  * only the physical holder. Its native checks still reject occupied vehicles. */
- void *give[]={donor,&index,storage,player,unbox(dget(handover)),&message};PTR granted=call(give_m,world,give,&ok);if(!ok||!granted||!*(unsigned char*)unbox(granted)){event("borrow-handover-refused");ddrop(&handover);return 0;}
- void *take[]={equipment,unbox(dget(handover))};PTR vehicle=call(take_m,world,take,&ok);ddrop(&handover);if(ok&&alive(vehicle)&&boolean(enter_m,vehicle,&ok)&&ok)event("borrowed-vehicle-entered");else event("borrowed-vehicle-handover-entry-pending");return 0;
+ if(!alive(v)||vehicle_read_boolean(driven_m,v,&ok)||!ok)return 0;PTR donor=0;field_value(v,equipment_owner_f,&donor);if(!alive(donor))return 0;
+ if(donor==equipment){vehicle_read_boolean(enter_m,v,&ok);return 0;}
+ borrow_vehicle(world,equipment,v,donor);return 0;
 }
-int MoonLab_ModStart(PTR domain,PTR game){if(!common(domain,game,"shared-vehicle-access.jsonl")||!mf_bind(game,0))return 0;
+int MoonLab_ModStart(PTR domain,PTR game){if(!common(domain,game,"shared-vehicle-access.jsonl"))return 0;
+ if(!moon_local_actor_bind()){event("local-actor-binding-failed");return 0;}
+ if(!mf_bind(game,1)){event("fleet-passenger-binding-failed");return 0;}
  (void)pressed;event("starting");
 #define M(F,T,N,S) F=dmethod("MoonCleaners",T,N,S);if(!F){event("method-missing:" T "::" N);return 0;}
  M(index_m,"MoonPrototypeVehicle","get_Index","");M(give_m,"MoonWorld","GiveVehicle","MoonCleaners.MoonPrototypeEquipment;System.Int32;System.String;System.String;MoonCleaners.MoonWorld.VehicleHandover&;System.String&");M(take_m,"MoonWorld","TakeVehicle","MoonCleaners.MoonPrototypeEquipment;MoonCleaners.MoonWorld.VehicleHandover");M(enter_m,"MoonPrototypeVehicle","Enter","");M(driven_m,"MoonPrototypeVehicle","get_IsDriven","");M(ask_m,"MoonPrototypeEquipment","AskForCrewVehicle","MoonCleaners.MoonRemoteVehicle");
